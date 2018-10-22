@@ -8,7 +8,7 @@ import random
 import argparse
 import sys
 from Queue import Queue
-# from concurrent import futures
+from concurrent import futures
 
 def get_args():
     """
@@ -135,3 +135,96 @@ class ServerOperations(threading.Thread):
                 return peer_list
             except Exception as e:
                 print(f"Searching files error: {e}")
+
+        def deregister(self, peer_data):
+            """
+            Invoked when the peer dies to remove all its entry from the central
+            indexing server.
+
+            @param peer_data:       Peer data containing peer deatails
+            @return True/False:     Return success of failure.
+            """
+            try:
+                if self.hash_table_ports_peers.has_key(peer_data['hosting_port']):
+                    self.hash_table_ports_peers.pop(peer_data['hosting_port'], None)
+                if self.hash_table_peer_files.has_key(peer_data['peer_id']):
+                    self.hash_table_peer_files.pop(peer_data['peer_id'], None)
+                for f in peer_data['files']:
+                    if self.hash_table_files.has_key(f):
+                        for peer_id in self.hash_table_files[f]:
+                            if peer_id == peer_data['peer_id']:
+                                self.hash_table_files[f].remove(peer_id)
+                                if len(self.hash_table_files[f]) == 0:
+                                    self.hash_table_files.pop(f, None)
+                return True
+            except Exception as e:
+                print(f"Peer deregistration failure: {e}")
+                return False
+
+        def run(self):
+            """
+            Start thread to carry out server operations.
+            """
+            try:
+                print("Starting server listener...")
+                listener_thread = threading.Thread(target = self.server_listener)
+                listener_thread.setDaemon(True)
+                listener_thread.start()
+                while True:
+                    while not self.listener_queue.empty():
+                        with future.ThreadPoolExecutor(max_workers = 8) as executor:
+                            conn, addr = self.listener_queue.get()
+                            data_received = json.load(conn.recv(1024))
+                            print(f"Connected with {addr[0]} on port {addr[1]}, requesting for {data_received['command']}")
+
+                            if data_received['command'] == 'register':
+                                fut = executor.submit(self.register, addr,
+                                                      data_received['files'],
+                                                      data_received['peer_port'])
+                                success = fut.result(timeout = None)
+                                if success:
+                                    print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
+                                    conn.send(json.dumps([addr[0], success]))
+                                else: #?
+                                    print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
+                                    conn.send(json.dumps([addr[0], success]))
+
+                            elif data_received['command'] == 'update':
+                                fut = executor.submit(self.update, data_received)
+                                success = fut.result(timeout = None)
+                                if success:
+                                    print(f"Update of Peer ID: {data_received['peer_id']} sucessful")
+                                    conn.send(json.dumps(success))
+                                else:
+                                    print(f"Update of Peer ID: {data_received['peer_id']} unsucessful")
+                                    conn.send(json.dumps(success))
+
+                            elif data_received['command'] == 'list':
+                                fut = executor.submit(self.list)
+                                file_list = fut.result(timeout = None)
+                                print(f"File list generated {file_list}")
+                                conn.send(json.dumps(file_list))
+
+                            elif data_received['command'] == 'search':
+                                fut = executor.submit(self.search, data_received['file_name'])
+                                peer_list = fut.result(timeout = None)
+                                print(f"Peer list generated {peer_list}")
+                                conn.send(json.dumps(peer_list))
+
+                            elif data_received['command'] == 'deregister':
+                                fut = executor.submit(self.deregister, data_received)
+                                success = fut.result(timeout = None)
+                                if success:
+                                    print (f"Deregistration of peer ID: {data_received['peer_id']} successful")
+                                    conn.send(json.dumps(success))
+                                else:
+                                    print (f"Deregistration of peer ID: {data_received['peer_id']} unsuccessful")
+                                    conn.send(json.dumps(success))
+
+                            print(f"Hash table: files || {self.hash_table_files}")
+                            print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
+                            print(f"Hash table: Peer-Files || {self.hash_table_peer_files}")
+                            conn.close()
+            except Exception as e:
+                print(f"Server error; {e}")
+                sys.exit(1)
