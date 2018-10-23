@@ -1,12 +1,13 @@
 #!/usr/bin/python
 
-import socket
-import time
+import sys
+import argparse
 import threading
 import json
+import socket
+import time
 import random
-import argparse
-import sys
+
 from Queue import Queue
 from concurrent import futures
 
@@ -17,7 +18,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         description = 'Specify arguments to talk to the central indexing server'
     )
-    parser.add_argument('p', '--port',
+    parser.add_argument('-p', '--port',
                         type = int,
                         required = True
                         action = 'store',
@@ -49,23 +50,23 @@ class ServerOperations(threading.Thread):
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_host = socket.gethostname()
-            server_socket.bind((server_host, self.server_port)
-            server_socket.listen(10)
+            server_socket.bind((server_host, self.server_port))
+            server_socket.listen()
             while True:
                 conn, addr = server_socket.accept()
                 self.listener_queue.put((conn, addr))
         except Exception as e:
             print(f"Server Listener on port failed: {e}")
-            sys.exit()
+            sys.exit(1)
 
     def register(self, addr, files, peer_port):
         """
         Invoked by the peer to register itself with the central indexing server.
-        @param addr:            Address f the incoming connection.
+        @param addr:            Address of the incoming connection.
         @param files:           File list sent by the peer.
         @param peer_port:       Peer's server port.
 
-        @return free_socket:    Socket prot to be used as a peer server.
+        @return free_socket:    Socket port to be used as a peer server.
         """
         try:
             self.hash_table_ports_peers[peer_port] = addr[0]
@@ -79,34 +80,6 @@ class ServerOperations(threading.Thread):
             return True
         except Exception as e:
             print(f"Peer registration failure: {e}")
-            return False
-
-    def update(self, peer_update):
-        """
-        Invoked by the peer to update the files in the central indexing server.
-        Peer invokes this method to add or remove file.
-        @param peer_update:     Peer File update details
-        """
-        try:
-            if peer_update['task'] == 'add':
-                for f in peer_update['files']:
-                    self.hash_table_peer_files[peer_update['peer_id']].append(f)
-                    if self.hash_table_files.has_key(f):
-                        self.hash_table_files[f].append(str(peer_update['peer_id']))
-                    else:
-                        self.hash_table_files[f] = [str(peer_update['peer_id'])]
-            if peer_update['task'] == 'remove':
-                for f in peer_update['files']:
-                    self.hash_table_peer_files[peer_update['peer_id']].remove(f)
-                    if self.hash_table_files.has_key(f):
-                        for peer_id in self.hash_table_files[f]:
-                            if peer_id == peer_update['peer_id']:
-                                self.hash_table_files[f].remove(peer_id)
-                                if len(self.hash_table_files[f]) == 0:
-                                    self.hash_table_files.pop(f, None)
-            return True
-        except Exception as e:
-            print(f"Peer file update failure: {e}")
             return False
 
         def list(self):
@@ -136,31 +109,6 @@ class ServerOperations(threading.Thread):
             except Exception as e:
                 print(f"Searching files error: {e}")
 
-        def deregister(self, peer_data):
-            """
-            Invoked when the peer dies to remove all its entry from the central
-            indexing server.
-
-            @param peer_data:       Peer data containing peer deatails
-            @return True/False:     Return success of failure.
-            """
-            try:
-                if self.hash_table_ports_peers.has_key(peer_data['hosting_port']):
-                    self.hash_table_ports_peers.pop(peer_data['hosting_port'], None)
-                if self.hash_table_peer_files.has_key(peer_data['peer_id']):
-                    self.hash_table_peer_files.pop(peer_data['peer_id'], None)
-                for f in peer_data['files']:
-                    if self.hash_table_files.has_key(f):
-                        for peer_id in self.hash_table_files[f]:
-                            if peer_id == peer_data['peer_id']:
-                                self.hash_table_files[f].remove(peer_id)
-                                if len(self.hash_table_files[f]) == 0:
-                                    self.hash_table_files.pop(f, None)
-                return True
-            except Exception as e:
-                print(f"Peer deregistration failure: {e}")
-                return False
-
         def run(self):
             """
             Start thread to carry out server operations.
@@ -189,16 +137,6 @@ class ServerOperations(threading.Thread):
                                     print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
                                     conn.send(json.dumps([addr[0], success]))
 
-                            elif data_received['command'] == 'update':
-                                fut = executor.submit(self.update, data_received)
-                                success = fut.result(timeout = None)
-                                if success:
-                                    print(f"Update of Peer ID: {data_received['peer_id']} sucessful")
-                                    conn.send(json.dumps(success))
-                                else:
-                                    print(f"Update of Peer ID: {data_received['peer_id']} unsucessful")
-                                    conn.send(json.dumps(success))
-
                             elif data_received['command'] == 'list':
                                 fut = executor.submit(self.list)
                                 file_list = fut.result(timeout = None)
@@ -210,16 +148,6 @@ class ServerOperations(threading.Thread):
                                 peer_list = fut.result(timeout = None)
                                 print(f"Peer list generated {peer_list}")
                                 conn.send(json.dumps(peer_list))
-
-                            elif data_received['command'] == 'deregister':
-                                fut = executor.submit(self.deregister, data_received)
-                                success = fut.result(timeout = None)
-                                if success:
-                                    print (f"Deregistration of peer ID: {data_received['peer_id']} successful")
-                                    conn.send(json.dumps(success))
-                                else:
-                                    print (f"Deregistration of peer ID: {data_received['peer_id']} unsuccessful")
-                                    conn.send(json.dumps(success))
 
                             print(f"Hash table: files || {self.hash_table_files}")
                             print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
