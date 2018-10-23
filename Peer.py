@@ -47,7 +47,7 @@ class PeerOperations(threading.Thread):
         Peer server listen on port assigned by central indexing server
         """
         try:
-            peer_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_server_host = socket.gethostname()
             peer_server_port = self.peer.hosting_port
@@ -148,7 +148,7 @@ class Peer():
         @return free_socket:           Socket prot to be used as peer server
         """
         try:
-            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_socket.bind(('', 0))
             free_socket = peer_socket.getsockname()[1]
@@ -167,7 +167,7 @@ class Peer():
             free_socket = self.get_free_socket()
             print(f"Registring peer with server...")
 
-            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_to_server_socket.connect(self.peer_hostname, self.server_port)
 
@@ -196,7 +196,7 @@ class Peer():
         Obtain files present in central indexing server
         """
         try:
-            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_to_server_socket.connect(self.peer_hostname, self.server_port)
 
@@ -218,7 +218,7 @@ class Peer():
         @param file_name:           File name to be searched
         """
         try:
-            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_to_server_socket.connect(self.peer_hostname, self.server_port)
 
@@ -250,7 +250,7 @@ class Peer():
         """
         try:
             peer_request_addr, peer_request_port = peer_request_id.split(':')
-            peer_request_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            peer_request_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_request_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_request_socket.connect(sock.gethostname(), int(peer_request_port))
 
@@ -268,48 +268,52 @@ class Peer():
         except Exception as e:
             print(f"Obtain file error, {e}")
 
-    if __name__ == '__mian__':
-        """
-        Main method starting deamon threads and peer operations.
-        """
-        try:
-            args = get_args()
-            print(f"Starting peer...")
-            p = Peer(args.server)
-            p.register_peer()
+if __name__ == '__mian__':
+    """
+    Main method starting deamon threads and peer operations.
+    """
+    try:
+        args = get_args()
+        print(f"Starting peer...")
+        p = Peer(args.server)
+        p.register_peer()
 
-            print(f"Starting peer server deamon thread...")
-            server_thread = PeerOperations(1, 'PeerServer', p)
-            server_thread.setDaemon(True)
-            server_thread.start()
+        print(f"Starting peer server deamon thread...")
+        server_thread = PeerOperations(1, 'PeerServer', p)
+        server_thread.setDaemon(True)
+        server_thread.start()
 
-            while True:
-                print("-" * 20)
-                print("1. List all files in central indexing server")
-                print("2. Search for File")
-                print("3. Get file from peer")
-                print("4. Exit")
-                print("-" * 20)
-                print("Enter choice: ")
-                ops = raw_input()
+        while True:
+            print("-" * 20)
+            print("1. List all files in central indexing server")
+            print("2. Search for File")
+            print("3. Get file from peer")
+            print("4. Exit")
+            print("-" * 20)
+            print("Enter choice: ")
+            ops = raw_input()
 
-                if int(ops) == 1:
-                    p.list_files_index_server()
-                elif int(ops) == 2:
-                    print("Enter file name: ")
-                    file_name = raw_input()
-                    p.search_file(file_name)
-                elif int(ops) == 3:
-                    print("Enter file name: ")
-                    file_name = raw_input()
-                    print("Enter Peer ID: ")
-                    peer_request_id = raw_input()
-                    p.obtain(file_name, peer_request_id)
-                elif int(ops) == 4:
-                    break
-                else:
-                    print("Invalid choice...")
-                    continue
-        except Exception as e:
-            print(e)
-            sys.exit(1)
+            if int(ops) == 1:
+                p.list_files_index_server()
+            elif int(ops) == 2:
+                print("Enter file name: ")
+                file_name = raw_input()
+                p.search_file(file_name)
+            elif int(ops) == 3:
+                print("Enter file name: ")
+                file_name = raw_input()
+                print("Enter Peer ID: ")
+                peer_request_id = raw_input()
+                p.obtain(file_name, peer_request_id)
+            elif int(ops) == 4:
+                break
+            else:
+                print("Invalid choice...")
+                continue
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        print("Central Indexing Server shutting down...")
+        time.sleep(1)
+        sys.exit(1)

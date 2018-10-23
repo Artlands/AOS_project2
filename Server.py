@@ -47,7 +47,7 @@ class ServerOperations(threading.Thread):
         Start to listen on port: 8080 for incoming connections.
         """
         try:
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STERAM)
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_host = socket.gethostname()
             server_socket.bind((server_host, self.server_port))
@@ -82,80 +82,80 @@ class ServerOperations(threading.Thread):
             print(f"Peer registration failure: {e}")
             return False
 
-        def list(self):
-            """
-            List all files registered with the central indexing server.
+    def list(self):
+        """
+        List all files registered with the central indexing server.
 
-            @return files_list:     List of files present in the server
-            """
-            try:
-                files_list = self.hash_table_files.keys()
-                return files_list
-            except Exception as e:
-                print(f"Listing files error: {e}")
+        @return files_list:     List of files present in the server
+        """
+        try:
+            files_list = self.hash_table_files.keys()
+            return files_list
+        except Exception as e:
+            print(f"Listing files error: {e}")
 
-        def search(self, file_name):
-            """
-            Search for a particular file.
-            @param file_name:       File name to be searched
-            @return:                List of peers associated with the file.
-            """
-            try:
-                if self.hash_table_files.has_key(file_name):
-                    peer_list = self.hash_table_files[file_name]
-                else:
-                    peer_list = []
-                return peer_list
-            except Exception as e:
-                print(f"Searching files error: {e}")
+    def search(self, file_name):
+        """
+        Search for a particular file.
+        @param file_name:       File name to be searched
+        @return:                List of peers associated with the file.
+        """
+        try:
+            if self.hash_table_files.has_key(file_name):
+                peer_list = self.hash_table_files[file_name]
+            else:
+                peer_list = []
+            return peer_list
+        except Exception as e:
+            print(f"Searching files error: {e}")
 
-        def run(self):
-            """
-            Start thread to carry out server operations.
-            """
-            try:
-                print("Starting server listener...")
-                listener_thread = threading.Thread(target = self.server_listener)
-                listener_thread.setDaemon(True)
-                listener_thread.start()
-                while True:
-                    while not self.listener_queue.empty():
-                        with future.ThreadPoolExecutor(max_workers = 8) as executor:
-                            conn, addr = self.listener_queue.get()
-                            data_received = json.load(conn.recv(1024))
-                            print(f"Connected with {addr[0]} on port {addr[1]}, requesting for {data_received['command']}")
+    def run(self):
+        """
+        Start thread to carry out server operations.
+        """
+        try:
+            print("Starting server listener...")
+            listener_thread = threading.Thread(target = self.server_listener)
+            listener_thread.setDaemon(True)
+            listener_thread.start()
+            while True:
+                while not self.listener_queue.empty():
+                    with future.ThreadPoolExecutor(max_workers = 8) as executor:
+                        conn, addr = self.listener_queue.get()
+                        data_received = json.load(conn.recv(1024))
+                        print(f"Connected with {addr[0]} on port {addr[1]}, requesting for {data_received['command']}")
 
-                            if data_received['command'] == 'register':
-                                fut = executor.submit(self.register, addr,
-                                                      data_received['files'],
-                                                      data_received['peer_port'])
-                                success = fut.result(timeout = None)
-                                if success:
-                                    print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
-                                    conn.send(json.dumps([addr[0], success]))
-                                else: #?
-                                    print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
-                                    conn.send(json.dumps([addr[0], success]))
+                        if data_received['command'] == 'register':
+                            fut = executor.submit(self.register, addr,
+                                                  data_received['files'],
+                                                  data_received['peer_port'])
+                            success = fut.result(timeout = None)
+                            if success:
+                                print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
+                                conn.send(json.dumps([addr[0], success]))
+                            else: #?
+                                print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
+                                conn.send(json.dumps([addr[0], success]))
 
-                            elif data_received['command'] == 'list':
-                                fut = executor.submit(self.list)
-                                file_list = fut.result(timeout = None)
-                                print(f"File list generated {file_list}")
-                                conn.send(json.dumps(file_list))
+                        elif data_received['command'] == 'list':
+                            fut = executor.submit(self.list)
+                            file_list = fut.result(timeout = None)
+                            print(f"File list generated {file_list}")
+                            conn.send(json.dumps(file_list))
 
-                            elif data_received['command'] == 'search':
-                                fut = executor.submit(self.search, data_received['file_name'])
-                                peer_list = fut.result(timeout = None)
-                                print(f"Peer list generated {peer_list}")
-                                conn.send(json.dumps(peer_list))
+                        elif data_received['command'] == 'search':
+                            fut = executor.submit(self.search, data_received['file_name'])
+                            peer_list = fut.result(timeout = None)
+                            print(f"Peer list generated {peer_list}")
+                            conn.send(json.dumps(peer_list))
 
-                            print(f"Hash table: files || {self.hash_table_files}")
-                            print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
-                            print(f"Hash table: Peer-Files || {self.hash_table_peer_files}")
-                            conn.close()
-            except Exception as e:
-                print(f"Server error; {e}")
-                sys.exit(1)
+                        print(f"Hash table: files || {self.hash_table_files}")
+                        print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
+                        print(f"Hash table: Peer-Files || {self.hash_table_peer_files}")
+                        conn.close()
+        except Exception as e:
+            print(f"Server error; {e}")
+            sys.exit(1)
 
 if __name__ == "__main__":
     """
@@ -169,4 +169,8 @@ if __name__ == "__main__":
         operations_thread.start()
     except Exception as e:
         print(e)
+        sys.exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        print("Central Indexing Server shutting down...")
+        time.sleep(1)
         sys.exit(1)
