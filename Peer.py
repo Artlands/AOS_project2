@@ -67,7 +67,7 @@ class PeerOperations(threading.Thread):
         @param data_received    Received data containing file name
         """
         try:
-            f = open(SHARED_DIR + '/' + data_received['file_name'], 'r')
+            f = open(SHARED_DIR + '/' + data_received['file_name'], 'rb')
             data = f.read()
             f.close()
             conn.sendall(data)
@@ -169,7 +169,7 @@ class Peer():
 
             peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(self.peer_hostname, self.server_port)
+            peer_to_server_socket.connect((self.peer_hostname, self.server_port))
 
             cmd_issue = {
                 'command': 'register',
@@ -177,7 +177,7 @@ class Peer():
                 'files': self.file_list
             }
 
-            peer_to_server_socket.sendall(json.dumps(cmd_issue))
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode())
             rcv_data = json.loads(peer_to_server_socket.recv(1024))
             peer_to_server_socket.close()
             if rcv_data[1]:
@@ -203,7 +203,7 @@ class Peer():
             cmd_issue = {
                 'command': 'list'
             }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue))
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode())
             rcv_data = json.loads(peer_to_server_socket.recv(1024))
             peer_to_server_socket.close()
             print(f"File list in the central indexing server")
@@ -226,7 +226,7 @@ class Peer():
                 'command': 'search',
                 'file_name': file_name
             }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue))
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode())
             rcv_data = json.loads(peer_to_server_socket.recv(1024))
             if len(rcv_data) == 0:
                 print(f"File Not Found")
@@ -258,9 +258,9 @@ class Peer():
                 'command': 'obtain',
                 'file_name': file_name
             }
-            peer_request_socket.sendall(json.dumps(cmd_issue))
+            peer_request_socket.sendall(json.dumps(cmd_issue).encode())
             rcv_data = peer_request_socket.recv(1024000)
-            f = open(SHARED_DIR + '/' + file_name, 'w')
+            f = open(SHARED_DIR + '/' + file_name, 'wb')
             f.write(rcv_data)
             f.close()
             peer_request_socket.close()
@@ -268,7 +268,7 @@ class Peer():
         except Exception as e:
             print(f"Obtain file error, {e}")
 
-if __name__ == '__mian__':
+if __name__ == '__main__':
     """
     Main method starting deamon threads and peer operations.
     """

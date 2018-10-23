@@ -73,7 +73,7 @@ class ServerOperations(threading.Thread):
             peer_id = addr[0] + ':' + str(peer_port)
             self.hash_table_peer_files[peer_id] = files
             for f in files:
-                if self.hash_table_files.has_key(f):
+                if f in self.hash_table_files:
                     self.hash_table_peer_files[f].append(peer_id)
                 else:
                     self.hash_table_peer_files[f] = [peer_id]
@@ -101,7 +101,7 @@ class ServerOperations(threading.Thread):
         @return:                List of peers associated with the file.
         """
         try:
-            if self.hash_table_files.has_key(file_name):
+            if file_name in self.hash_table_files:
                 peer_list = self.hash_table_files[file_name]
             else:
                 peer_list = []
@@ -120,9 +120,9 @@ class ServerOperations(threading.Thread):
             listener_thread.start()
             while True:
                 while not self.listener_queue.empty():
-                    with future.ThreadPoolExecutor(max_workers = 8) as executor:
+                    with futures.ThreadPoolExecutor(max_workers = 8) as executor:
                         conn, addr = self.listener_queue.get()
-                        data_received = json.load(conn.recv(1024))
+                        data_received = json.loads(conn.recv(1024))
                         print(f"Connected with {addr[0]} on port {addr[1]}, requesting for {data_received['command']}")
 
                         if data_received['command'] == 'register':
@@ -132,22 +132,22 @@ class ServerOperations(threading.Thread):
                             success = fut.result(timeout = None)
                             if success:
                                 print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
-                                conn.send(json.dumps([addr[0], success]))
+                                conn.send(json.dumps([addr[0], success]).encode())
                             else: #?
                                 print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
-                                conn.send(json.dumps([addr[0], success]))
+                                conn.send(json.dumps([addr[0], success]).encode())
 
                         elif data_received['command'] == 'list':
                             fut = executor.submit(self.list)
                             file_list = fut.result(timeout = None)
                             print(f"File list generated {file_list}")
-                            conn.send(json.dumps(file_list))
+                            conn.send(json.dumps(file_list).encode())
 
                         elif data_received['command'] == 'search':
                             fut = executor.submit(self.search, data_received['file_name'])
                             peer_list = fut.result(timeout = None)
                             print(f"Peer list generated {peer_list}")
-                            conn.send(json.dumps(peer_list))
+                            conn.send(json.dumps(peer_list).encode())
 
                         print(f"Hash table: files || {self.hash_table_files}")
                         print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         print(f"Starting Central Indexing Server...")
         print(f"Starting Server operations thread...")
         operations_thread = ServerOperations(1, "ServerOperations", args.port)
-        operations_thread.start()
+        operations_thread.run()
     except Exception as e:
         print(e)
         sys.exit(1)
