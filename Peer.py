@@ -8,7 +8,7 @@ import json
 import socket
 import time
 
-from Queue import Queue
+from queue import Queue
 from concurrent import futures
 
 SHARED_DIR = './shared-files'
@@ -22,7 +22,7 @@ def get_args():
     )
     parser.add_argument('-s', '--server',
                         type = int,
-                        required = True
+                        required = True,
                         action = 'store',
                         help = 'Server Port Number')
     args = parser.parse_args()
@@ -119,7 +119,7 @@ class PeerOperations(threading.Thread):
         """
         Deamon thread for peer server
         """
-        if self.name = "PeerServer":
+        if self.name == "PeerServer":
             self.peer_server()
 
 class Peer():

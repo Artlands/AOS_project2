@@ -8,7 +8,7 @@ import socket
 import time
 import random
 
-from Queue import Queue
+from queue import Queue
 from concurrent import futures
 
 def get_args():
@@ -20,7 +20,7 @@ def get_args():
     )
     parser.add_argument('-p', '--port',
                         type = int,
-                        required = True
+                        required = True,
                         action = 'store',
                         help = 'Server Port Number')
     args = parser.parse_args()
@@ -156,3 +156,17 @@ class ServerOperations(threading.Thread):
             except Exception as e:
                 print(f"Server error; {e}")
                 sys.exit(1)
+
+if __name__ == "__main__":
+    """
+    Main method to start deamon threads for listener and opeartions.
+    """
+    try:
+        args = get_args()
+        print(f"Starting Central Indexing Server...")
+        print(f"Starting Server operations thread...")
+        operations_thread = ServerOperations(1, "ServerOperations", args.port)
+        operations_thread.start()
+    except Exception as e:
+        print(e)
+        sys.exit(1)
