@@ -37,10 +37,11 @@ class ServerOperations(threading.Thread):
         self.threadID = threadid
         self.name = name
         self.server_port = server_port
-        self.hash_table_ports_peers = {}
         self.hash_table_files = {}
+        self.hash_table_ports_peers = {}
         self.hash_table_peer_files = {}
-        self.listener_queue = Queue()
+        # listener_queue to store all peers connected to the central indexing server
+        self.listener_queue = Queue()       
 
     def server_listener(self):
         """
@@ -133,7 +134,7 @@ class ServerOperations(threading.Thread):
                             if success:
                                 print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
                                 conn.send(json.dumps([addr[0], success]).encode())
-                            else: #?
+                            else:
                                 print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
                                 conn.send(json.dumps([addr[0], success]).encode())
 

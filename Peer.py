@@ -275,8 +275,8 @@ if __name__ == '__main__':
     try:
         args = get_args()
         print(f"Starting peer...")
+        # create a instance of Peer, use argument specified by user to initialize
         p = Peer(args.server)
-        p.register_peer()
 
         print(f"Starting peer server deamon thread...")
         server_thread = PeerOperations(1, 'PeerServer', p)
@@ -284,28 +284,30 @@ if __name__ == '__main__':
         server_thread.start()
 
         while True:
-            print("-" * 20)
-            print("1. List all files in central indexing server")
-            print("2. Search for File")
-            print("3. Get file from peer")
-            print("4. Exit")
-            print("-" * 20)
-            print("Enter choice: ")
-            ops = raw_input()
+            print("-" * 80)
+            print("register: Register the peer on the central indexing server")
+            print("list: List all files in central indexing server")
+            print("search: Search for File")
+            print("get: Get file from peer")
+            print("exit: Exit")
+            print("-" * 80)
+            ops = input("Enter choice: ")
 
-            if int(ops) == 1:
+            if ops == "register":
+                p.register_peer()
+            elif ops == "list":
                 p.list_files_index_server()
-            elif int(ops) == 2:
+            elif ops == "search":
                 print("Enter file name: ")
                 file_name = raw_input()
                 p.search_file(file_name)
-            elif int(ops) == 3:
+            elif ops == "get":
                 print("Enter file name: ")
                 file_name = raw_input()
                 print("Enter Peer ID: ")
                 peer_request_id = raw_input()
                 p.obtain(file_name, peer_request_id)
-            elif int(ops) == 4:
+            elif ops == "exit":
                 break
             else:
                 print("Invalid choice...")
@@ -314,6 +316,6 @@ if __name__ == '__main__':
         print(e)
         sys.exit(1)
     except (KeyboardInterrupt, SystemExit):
-        print("Central Indexing Server shutting down...")
+        print("Peer shutting down...")
         time.sleep(1)
         sys.exit(1)
