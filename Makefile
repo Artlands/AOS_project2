@@ -4,7 +4,7 @@ SERVER=server
 
 all: linkedlist.o
 	gcc -Wall linkedlist.o client.c -o client
-	# gcc -Wall server.c -o server
+	gcc -Wall server.c -o server
 
 # all: $(CLIENT).out $(SERVER).out
 #

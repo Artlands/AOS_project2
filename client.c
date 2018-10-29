@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-
+// linkedlist.h refer to https://github.com/skorks/c-linked-list
 #include "linkedlist.h"
 
 #define MAXBUFSIZE 2048
@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
     char *myIP;
     char myPort[12];
     struct hostent *host_entry;
-    int hostname;
+    // int hostname;
     //get hostname, store in hostbuffer
-    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    gethostname(hostbuffer, sizeof(hostbuffer));
     host_entry = gethostbyname(hostbuffer);
     //get IP address, inet_ntop - convert IPv4 and IPv6 addresses from binary to text form
     myIP = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0]));
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     if (setsockopt(getSocket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
       error("setsockopt(SO_REUSEADDR) failed");
 
-    if (bind(getSocket, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
+    if (bind(getSocket, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
       error("ERROR on binding");
     //get myPort no., other peers will connect to this port.
     getPort = ntohs(serv_addr.sin_port);
@@ -99,12 +99,12 @@ int main(int argc, char *argv[])
 
         //wait for commands
         while(1) {
-          printf("---------------------------------\n");
-          printf("r: --------- Register with server\n");
-          printf("l: ------------ Get list of files\n");
-          printf("s: ------------------ Search file\n");
-          printf("o: ------------------ Obtain file\n");
-          printf("q: ------------------------- Quit\n");
+          printf("----------------------------------\n");
+          printf("r: ---------- Register with server\n");
+          printf("l: ------------- Get list of files\n");
+          printf("s: ------------------- Search file\n");
+          printf("o: ------------------- Obtain file\n");
+          printf("q: Deregister with Server and Quit\n");
           printf("Enter choice: ");
           scanf("%s", command);
 
@@ -125,9 +125,9 @@ int main(int argc, char *argv[])
           else if(strcmp(command, "s") == 0) {
             printf("Search request sent to the server.\n");
           }
-          else if(strcmp(command, "o") == 0) {
-            printf("Obtain request sent to the server.\n");
-          }
+          // else if(strcmp(command, "o") == 0) {
+          //   printf("Obtain request sent to the server.\n");
+          // }
           else if(strcmp(command, "q") == 0) {
             error("Exit peer service, deregister on the server\n");
           }
