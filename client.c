@@ -6,15 +6,23 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
 
 #include "linkedlist.h"
+
+#define MAXBUFSIZE 2048
+#define MAXINTSIZE 8
 
 void error(const char *msg)
 {
     perror(msg);
     exit(0);
 }
+int getFiles(List **fileList, char *name, char *ip, char *port);
+int registerClient(char *name, char *ip, char *port, int sock);
 
 int main(int argc, char *argv[])
 {
@@ -30,15 +38,15 @@ int main(int argc, char *argv[])
     //get hostname, store in hostbuffer
     hostname = gethostname(hostbuffer, sizeof(hostbuffer));
     host_entry = gethostbyname(hostbuffer);
-    //get IP address
+    //get IP address, inet_ntop - convert IPv4 and IPv6 addresses from binary to text form
     myIP = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0]));
 
     //init server addr with address and port provided in argv
-    int sockfd, portno, n;
+    // int sockfd, portno, n;
     struct sockaddr_in serv_addr;
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr(INADDR_ANY);
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = 0;
 
     //create getSocket and set SO_REUSEADDR
@@ -58,7 +66,7 @@ int main(int argc, char *argv[])
     listen(getSocket, 5);
     printf("Start listening on port %d...\n", getPort);
 
-    //Create files
+    //Create file list
     if(getFiles(&fileList, argv[1], myIP, myPort))
       printf("ERROR on getting files\n");
 
@@ -87,7 +95,7 @@ int main(int argc, char *argv[])
         printf("Connect with the central indexing server successfull!\n");
 
         char command[MAXBUFSIZE];
-        char buffer[MAXBUFSIZE];
+        // char buffer[MAXBUFSIZE];
 
         //wait for commands
         while(1) {
@@ -106,10 +114,10 @@ int main(int argc, char *argv[])
               printf("Client Name already registered.\n");
               continue;
             }
-            if(registerFiles(socketfd, fileList)) {
-              printf("Register files failed\n");
-              continue;
-            }
+            // if(registerFiles(socketfd, fileList)) {
+            //   printf("Register files failed\n");
+            //   continue;
+            // }
           }
           else if(strcmp(command, "l") == 0) {
             printf("List request sent to the server.\n");
@@ -131,7 +139,7 @@ int main(int argc, char *argv[])
         close(socketfd);
       }
       else {
-
+        printf("Handle file downloads\n");
       }
       exit(0);
     }
@@ -170,11 +178,11 @@ int registerClient(char *name, char *ip, char *port, int sock){
 }
 
 // Get files information in the directory, save them into a linked list
-int getFiles(List **fileList, char *ip, char *port) {
+int getFiles(List **fileList, char *name, char *ip, char *port) {
   DIR *dirp;
   struct dirent *dp;
   struct stat fileStats;
-  char *filename;
+  char *fileName;
   *fileList = emptylist();
 
   if ((dirp = opendir(".")) == NULL) {
@@ -185,7 +193,7 @@ int getFiles(List **fileList, char *ip, char *port) {
     if ((dp = readdir(dirp)) != NULL) {
       fileName = dp -> d_name;
       if((strcmp(fileName, ".") != 0) && (strcmp(fileName, "..") != 0)) {
-        stat(fileName, *fileList);
+        stat(fileName, &fileStats);
         FileInfo fileInfo = {fileName, fileStats.st_size, ip, port};
         add(fileInfo, *fileList);
       }
