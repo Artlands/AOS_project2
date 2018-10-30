@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
-#include <fcntl.h>
+#include <signal.h>
 // linkedlist.h refer to https://github.com/skorks/c-linked-list
 #include "linkedlist.h"
 
@@ -280,9 +280,12 @@ int main(int argc, char *argv[])
         printf("ERROR on receiving. Try agian\n");
         continue;
       }
+      printf("Obtain file %s successfull1\n", file_name);
     }
     else if(strcmp(command, "q") == 0) {
-      error("Exit peer service, deregister on the server\n");
+      printf("Exit peer service, deregister on the server\n");
+      kill(pid, SIGTERM);
+      exit(0);
     }
     else {
       printf("Invalid choice, please enter your choice agian.\n");

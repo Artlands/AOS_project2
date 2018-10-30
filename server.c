@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
 #define MAXBUFSIZE 2048
 #define MAXFILES 1024
@@ -150,6 +151,7 @@ int main(int argc, char *argv[]) {
             /*deregister with server*/
             removeClient(tmpClientInfo.name, &sizeClients, &sizeFileList);
             close(newsockfd);
+            kill(pid, SIGTERM);
             exit(0);
           }
         }
