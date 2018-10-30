@@ -26,7 +26,6 @@ struct file {
 
 struct file fileList[MAXFILES];
 struct client clientList[MAXCLIENTS];
-int cli_socketfds[MAXCLIENTS];
 
 // void addFile(char *name, char *source, char *ip, char *port, int *fileList);
 // Called when a system call fails
@@ -35,7 +34,14 @@ void error(const char *msg) {
     exit(1);
 }
 
+struct client getClientInfo(int socket);
+int addClient(char name[MAXBUFSIZE], char ip[MAXBUFSIZE], int port, int *sizeClients);
+int registerFiles(int socket, int *sizeClients, int *sizefileList);
+void addFile(char *name, char *size, char *source, char *ip, char *port, int *sizefileList);
+
 int main(int argc, char *argv[]) {
+    int sizefileList = 0;
+    int sizeClients = 0;
     pid_t pid;
     int sockfd, newsockfd, portno;  //sockfd, newsockfd are file descriptors, store values returned by the socket system call and the accept system call.
     socklen_t clilen; //clilen stores the size of the address of the client.
@@ -100,8 +106,39 @@ int main(int argc, char *argv[]) {
         while(1) {
           bzero(buffer, sizeof(buffer));
           if(recv(newsockfd, buffer, sizeof(buffer), 0) > 0) {
+            /*Register peer with server*/
             if(strcmp(buffer, "r") == 0) {
-              /*Register peer with server*/
+              struct client tmpClient;
+              tmpClient = getClientInfo(newsockfd);
+              //add client
+              bzero(buffer, sizeof(buffer));
+              if(addClient(tmpClient.name, tmpClient.ip, tmpClient.port, &sizeClients)) {
+                strcat(buffer, "Add client successfull.");
+                if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+                  printf("Send add client response failed\n");
+                }
+              }
+              else {
+                strcat(buffer, "The client has already registered.");
+                if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+                  printf("Send add client response failed\n");
+                }
+              }
+              //register files
+              bzero(buffer, sizeof(buffer));
+              if(registerFiles(newsockfd, &sizeClients, &sizefileList)) {
+                strcat(buffer, "Register files successfull.");
+                if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+                  printf("Send register file response failed\n");
+                }
+              }
+              else {
+                strcat(buffer, "Register files failed.");
+                if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+                  printf("Send register file response failed\n");
+                }
+              }
+              continue;
             }
             else if(strcmp(buffer, "l") == 0) {
               /*List files registered with server*/
@@ -124,33 +161,127 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // void *req_handler(void *sock)
-  // {
-  //     int newsockfd = *(int*) sock;
-  //     int n;
-  //     // reads characters from the socket connection into this buffer
-  //     char buffer[1];
-  //
-  //     char name[MAXBUFSIZE], size[MAXBUFSIZE], source[MAXBUFSIZE];
-  //     char ip[MAXBUFSIZE], port[MAXBUFSIZE];
-  //     char buffer[MAXBUFSIZE];
-  //
-  //     bzero(buffer, sizeof(buffer));
-  //     bzero(name, sizeof(name));
-  //     bzero(ip, sizeof(ip));
-  //     bzero(prot, sizeof(port));
-  //
-  //     n = read(newsockfd, buffer, sizeof(buffer));
-  //     if (n < 0)
-  //         error("ERROR reading from socket");
-  // }
+  struct client getClientInfo(int socket) {
+    struct client clientInfo;
+    char name[MAXBUFSIZE], ip[MAXBUFSIZE], port[MAXBUFSIZE];
+    char buffer[MAXBUFSIZE];
 
-  // void addFile(char *name, char *source, char *ip, char *port, int *fileList)
-  // {
-  //   strcpy(fileList[*fileList].name, name);
-  //   fileList[*fileList].size = atoi(size);
-  //   strcpy(fileList[*fileList].location.name, source);
-  //   strcpy(fileList[*fileList].location.ip, ip);
-  //   fileList[*fileList].location.port = atoi(port);
-  //   (*fileList)++;
-  // }
+    bzero(buffer, sizeof(buffer));
+    bzero(name, sizeof(name));
+    bzero(ip, sizeof(ip));
+    bzero(port, sizeof(port));
+
+    recv(socket, buffer, sizeof(buffer), 0);
+    char *start;
+    char *end;
+    start = buffer;
+    end = strchr(buffer, '|');
+    //get name from string
+    int i = 0;
+    while(start != end) {
+      name[i] = *start;
+      i++;
+      start++;
+    }
+    strcpy(clientInfo.name, name);
+    //get ip from string
+    start++;
+    end = strchr(end+1, '|');
+    i = 0;
+    while(start != end) {
+      ip[i] = *start;
+      i++;
+      start++;
+    }
+    strcpy(clientInfo.ip, ip);
+    //get port from string
+    end++;
+    strcpy(port, end);
+    clientInfo.port = atoi(port);
+    
+    return clientInfo;
+  }
+
+  /*add client*/
+  int addClient(char name[MAXBUFSIZE], char ip[MAXBUFSIZE], int port, int *sizeClients) {
+    int i;
+    for(i = 0; i < *sizeClients; i++) {
+      //client name already exists
+      if(strcmp(clientList[i].name, name) == 0) {
+        return 0;
+      }
+    }
+    //copy client info and add them to client list.
+    strcpy(clientList[*sizeClients].name, name);
+    strcpy(clientList[*sizeClients].ip, ip);
+    clientList[*sizeClients].port = port;
+    (*sizeClients)++;
+    return 1;
+  }
+
+  /*return 0 if no file registered, return 1 if file registered*/
+  int registerFiles(int socket, int *sizeClients, int *sizefileList) {
+    char name[MAXBUFSIZE], size[MAXBUFSIZE], source[MAXBUFSIZE];
+    char ip[MAXBUFSIZE], port[MAXBUFSIZE];
+    char buffer[MAXBUFSIZE];
+    bzero(buffer, sizeof(buffer));
+    bzero(name, sizeof(name));
+    bzero(size, sizeof(size));
+    bzero(source, sizeof(source));
+    bzero(ip, sizeof(ip));
+    bzero(port, sizeof(port));
+    /*wait for client files*/
+    if(recv(socket, buffer, sizeof(buffer), 0) > 0) {
+      if(strlen(buffer) == 0) { //no file registered
+        bzero(buffer, sizeof(buffer));
+        strcat(buffer, "No file registered with server");
+        if(send(socket, buffer, sizeof(buffer), 0) <= 0) {
+          printf("File registration response send failed\n");
+          return 0;
+        }
+        return 0;
+      }
+
+      char *start = buffer;
+      char *end = buffer;
+      char *comma = buffer;
+      /*part the string, extract name, size, source, ip, port info*/
+      while((start = strchr(start, '<')) != NULL) {
+        end = strchr(end + 1, '>');
+        start ++;
+        //get name from string
+        comma = strchr(start, ',');
+        strncpy(name, start, comma-start);
+        comma++;
+        start = comma;
+        //get size from string
+        comma = strchr(start, ',');
+        strncpy(size, start, comma-start);
+        comma++;
+        start = comma;
+        //get source from string
+        comma = strchr(start, ',');
+        strncpy(source, start, comma-start);
+        comma++;
+        start = comma;
+        //get ip from string
+        comma = strchr(start, ',');
+        strncpy(ip, start, comma-start);
+        comma++;
+        start = comma;
+        //get port from string
+        strncpy(port, start, end-start);
+        addFile(name, size, source, ip, port, sizefileList);
+      }
+      return 1;
+    }
+    return 0;
+  }
+  void addFile(char *name, char *size, char *source, char *ip, char *port, int *sizefileList) {
+    strcpy(fileList[*sizefileList].name, name);
+    fileList[*sizefileList].size = atoi(size);
+    strcpy(fileList[*sizefileList].location.name, source);
+    strcpy(fileList[*sizefileList].location.ip, ip);
+    fileList[*sizefileList].location.port = atoi(port);
+    (*sizefileList)++;
+  }

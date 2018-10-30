@@ -21,8 +21,10 @@ void error(const char *msg)
     perror(msg);
     exit(0);
 }
-int getFiles(List **fileList, char *name, char *ip, char *port);
+int getFiles(List **fileList, char *ip, char *port);
+int listToBuffer(List *fileList, char *buffer);
 int registerClient(char *name, char *ip, char *port, int sock);
+int registerFiles(int sock, List *fileList);
 
 int main(int argc, char *argv[])
 {
@@ -66,10 +68,6 @@ int main(int argc, char *argv[])
     listen(getSocket, 5);
     printf("Start listening on port %d...\n", getPort);
 
-    //Create file list
-    if(getFiles(&fileList, argv[1], myIP, myPort))
-      printf("ERROR on getting files\n");
-
     //create a child process, one process handles file download requests
     //the other process connects and talks to the central indexing server
     pid = fork();
@@ -109,15 +107,27 @@ int main(int argc, char *argv[])
           scanf("%s", command);
 
           if(strcmp(command, "r") == 0) {
-            //Register client name
-            if(registerClient(argv[1], myIP, myPort, socketfd)) {
-              printf("Client Name already registered.\n");
+            /*Create file list*/
+            if(getFiles(&fileList, myIP, myPort) != 0) {
+              printf("ERROR on getting files\n");
               continue;
             }
-            // if(registerFiles(socketfd, fileList)) {
-            //   printf("Register files failed\n");
+            /*send register request*/
+            if(send(socketfd, command, sizeof(command), 0) <= 0) {
+              printf("Register request failed\n");
+              continue;
+            }
+            /*Register files*/
+            if(registerFiles(socketfd, fileList) != 0) {
+              printf("Register files failed\n");
+              continue;
+            }
+            /*Register client name*/
+            // if(registerClient(argv[1], myIP, myPort, socketfd)) {
+            //   printf("Client Name already registered.\n");
             //   continue;
             // }
+            printf("Register with server successfull\n");
           }
           else if(strcmp(command, "l") == 0) {
             printf("List request sent to the server.\n");
@@ -146,15 +156,77 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-//Register client name with server
+/* Get files information in the directory, save them into a linked list*/
+int getFiles(List **fileList, char *ip, char *port) {
+  DIR *dirp;
+  struct dirent *dp;
+  struct stat fileStats;
+  char *fileName;
+  *fileList = emptylist();
+
+  if ((dirp = opendir(".")) == NULL) {
+    perror("Cannot open '.'\n");
+    return 1;
+  }
+  do {
+    if ((dp = readdir(dirp)) != NULL) {
+      fileName = dp -> d_name;
+      if((strcmp(fileName, ".") != 0) && (strcmp(fileName, "..") != 0)) {
+        stat(fileName, &fileStats);
+        FileInfo fileInfo = {fileName, fileStats.st_size, ip, port};
+        add(fileInfo, *fileList);
+      }
+    }
+  } while (dp != NULL);
+  return 0;
+}
+
+/*Convert linkedlist to buffer*/
+int listToBuffer(List *fileList, char *buffer) {
+  if(fileList->head != NULL) {
+    Node *currNode = fileList->head;
+    strcat(buffer, "<");
+    strcat(buffer, currNode->data.name);
+    strcat(buffer, ",");
+    sprintf(buffer, "%s%d", buffer, currNode->data.size);
+    strcat(buffer, ",");
+    strcat(buffer, currNode->data.owner);
+    strcat(buffer, ",");
+    strcat(buffer, currNode->data.ip);
+    strcat(buffer, ",");
+    strcat(buffer, currNode->data.port);
+    strcat(buffer, ">");
+
+    while(currNode->next != NULL) {
+      currNode = currNode->next;
+      strcat(buffer, "<");
+      strcat(buffer, currNode->data.name);
+      strcat(buffer, ",");
+      sprintf(buffer, "%s%d", buffer, currNode->data.size);
+      strcat(buffer, ",");
+      strcat(buffer, currNode->data.owner);
+      strcat(buffer, ",");
+      strcat(buffer, currNode->data.ip);
+      strcat(buffer, ",");
+      strcat(buffer, currNode->data.port);
+      strcat(buffer, ">");
+    }
+
+    if(strlen(buffer) > 0) return 0;
+    return 1;
+  }
+  return 1;
+}
+
+/*Register client name with server*/
 int registerClient(char *name, char *ip, char *port, int sock){
   char buffer[MAXBUFSIZE];
   bzero(buffer, sizeof(buffer));
 
   strcat(buffer, name);
-  strcat(buffer, "-");
+  strcat(buffer, "|");
   strcat(buffer, ip);
-  strcat(buffer, "-");
+  strcat(buffer, "|");
   strcat(buffer, port);
 
   if(send(sock, buffer, sizeof(buffer), 0) > 0) {
@@ -177,27 +249,18 @@ int registerClient(char *name, char *ip, char *port, int sock){
   return 1;
 }
 
-// Get files information in the directory, save them into a linked list
-int getFiles(List **fileList, char *name, char *ip, char *port) {
-  DIR *dirp;
-  struct dirent *dp;
-  struct stat fileStats;
-  char *fileName;
-  *fileList = emptylist();
-
-  if ((dirp = opendir(".")) == NULL) {
-    perror("Cannot open '.'\n");
+/*Register client files with server*/
+int registerFiles(int sock, List *fileList) {
+  char buffer[MAXBUFSIZE];
+  bzero(buffer, sizeof(buffer));
+  if(listToBuffer(fileList, buffer) != 0){
+    printf("Failed to read file list.\n");
     return 1;
   }
-  do {
-    if ((dp = readdir(dirp)) != NULL) {
-      fileName = dp -> d_name;
-      if((strcmp(fileName, ".") != 0) && (strcmp(fileName, "..") != 0)) {
-        stat(fileName, &fileStats);
-        FileInfo fileInfo = {fileName, fileStats.st_size, ip, port};
-        add(fileInfo, *fileList);
-      }
-    }
-  } while (dp != NULL);
+  /*send buffer to server*/
+  if(send(sock, buffer, sizeof(buffer), 0) != 0) {
+    printf("Failed to send file list.\n");
+    return 1;
+  }
   return 0;
 }
