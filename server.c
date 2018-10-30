@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
   int sizeFileList = 0;
   int sizeClients = 0;
   pid_t pid;
+
   int sockfd, newsockfd, portno;  //sockfd, newsockfd are file descriptors, store values returned by the socket system call and the accept system call.
   socklen_t clilen; //clilen stores the size of the address of the client.
   struct sockaddr_in serv_addr, cli_addr; //structure containing internet addresses
@@ -60,25 +61,24 @@ int main(int argc, char *argv[]) {
   IPbuffer = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0]));
 
   if (argc < 2) {
-    error("ERROR, no port provided\n");
+    error("ERROR, no port provided.\n");
   }
   sockfd = socket(AF_INET, SOCK_STREAM, 0); //create a new socket, returns an entry into file descriptor table
   if (sockfd < 0)
-    error("ERROR opening socket");
+    error("ERROR opening socket.");
 
   int enable = 1; //set SO_REUSEADDR so that socket immediate unbinds from port after closed
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-    error("setsockopt(SO_REUSEADDR) failed");
+    error("setsockopt(SO_REUSEADDR) failed.");
 
   bzero((char *) &serv_addr, sizeof(serv_addr));  //sets all values in a buffer to 0
   portno = atoi(argv[1]);
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = INADDR_ANY; //the IP address of the machine on which the server is running, INADDR_ANY gets this address
+  serv_addr.sin_addr.s_addr = INADDR_ANY; //INADDR_ANY means server will bind to all netwrok interfaces on machine for given port no
   serv_addr.sin_port = htons(portno); //htons converts a port number in host byte order to a port number in network byte order
 
-  if (bind(sockfd, (struct sockaddr *) &serv_addr,  //binds a socket to an address
-          sizeof(serv_addr)) < 0)
-          error("ERROR on binding");
+  if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)  //binds a socket to an address
+    error("ERROR on binding.");
 
   listen(sockfd,5);
   printf("Starting Central Indexing Server...\n");
@@ -88,9 +88,7 @@ int main(int argc, char *argv[]) {
 
   char buffer[MAXBUFSIZE];  //recevier buffer
   while(1) {
-    newsockfd = accept(sockfd,
-                 (struct sockaddr *) &cli_addr,
-                 &clilen);
+    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
     if(newsockfd < 0) continue;
     /*create seperate process for each client*/
     pid = fork();
