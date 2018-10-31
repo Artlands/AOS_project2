@@ -217,11 +217,11 @@ int main(int argc, char *argv[]) {
           send(sockfd, input, strlen(input), 0); // send input to server
           len = recv(sockfd, output, sizeof(output), 0);
           output[len] = '\0';
+          printf("waiting for response...\n");
+          printf("Filename\tPeer name\tPeer IP\tPeer Port\n");
           printf("%s\n", output);
           bzero(output, sizeof(output));
 
-          printf("waiting for response...\n");
-          printf("Filename\tPeer name\tPeer IP\tPeer Port\n");
           while((len = recv(sockfd, output, MAXBUFSIZE, 0)) > 0) {
             output[len] = '\0';
             printf("%s\n", output);
