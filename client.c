@@ -1,40 +1,33 @@
-// linkedlist.h refer to https://github.com/skorks/c-linked-list
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <arpa/inet.h>
 #include <sys/select.h>
-#include <signal.h>
-#include "linkedlist.h"
 
 #define MAXBUFSIZE 2048
 
+// Called when a system call fails
 void error(const char *msg)
 {
     perror(msg);
     exit(0);
 }
-int getFiles(List **fileList, char *ip, char *port);
-int listToBuffer(List *fileList, char *buffer);
+
 int registerClient(char *name, char *ip, char *port, int socket);
-int registerFiles(int socket, List *fileList);
-int obtainFile(int socket, struct sockaddr_in peer, char file_name,
-               char *ip, char *port, FILE *file);
 
 int main(int argc, char *argv[]) {
-  List *fileList = emptylist();
   pid_t pid;
   char input[MAXBUFSIZE]; //user input stored
   char output[MAXBUFSIZE]; //send file stored
   char buffer[MAXBUFSIZE]; //recevie message stored
-  char command[MAXBUFSIZE]; // user command stored
+  int command; // user command stored
+  char *temp; // variable to store temporary values
   char hostname[256];  // host name stored
   char *myIP; //local ip address
   char myPort[MAXBUFSIZE];    //port used for other peers
@@ -77,8 +70,8 @@ int main(int argc, char *argv[]) {
   if(sockfd < 0)
     error("ERROR on opening socket.");
 
-  int enable = 1; //set SO_REUSEADDR so that socket immediate unbinds from port after closed
-  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+  int enable1 = 1; //set SO_REUSEADDR so that socket immediate unbinds from port after closed
+  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable1, sizeof(int)) < 0)
     error("setsockopt(SO_REUSEADDR) failed");
 
   central_server.sin_family = AF_INET;
@@ -100,9 +93,14 @@ int main(int argc, char *argv[]) {
   if(listen_sock < 0)
     error("ERROR on opening socket.");
 
+  int enable2 = 1; //set SO_REUSEADDR so that socket immediate unbinds from port after closed
+  if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &enable2, sizeof(int)) < 0)
+    error("setsockopt(SO_REUSEADDR) failed.");
+
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;  //INADDR_ANY means server will bind to all netwrok interfaces on machine for given port no
   server.sin_port = htons(atoi(argv[3]));
+  bzero(&server.sin_zero, 8); //padding zeros
 
   if(bind(listen_sock, (struct sockaddr *) &server, sizeof(server)) < 0)
     error("ERROR on binding.");
@@ -185,174 +183,122 @@ int main(int argc, char *argv[]) {
 
   /*Display menu for user input*/
   while(1) {
-    printf("----------------------------------\n");
-    printf("r: ---------- Register with server\n");
-    printf("l: ------------- Get list of files\n");
-    printf("s: ------------------- Search file\n");
-    printf("o: ------------------- Obtain file\n");
-    printf("q: Deregister with Server and Quit\n");
+
+    printf("--------Welcome to P2P file system--------\n");
+    printf("1: ------------------ Register with server\n");
+    printf("2: --------------------------- Search file\n");
+    printf("3: --------------------------- Obtain file\n");
+    printf("4: --------Deregister with Server and Quit\n");
     printf("Enter choice: \t");
-    scanf("%s", command);
-    send(sockfd, command, sizeof(command), 0);
-    printf("Choice:%s\n", command);
-
-    if(strcmp(command, "r") == 0) {   //register request
-      /*Create file list*/
-      if(getFiles(&fileList, myIP, myPort) != 0) {
-        printf("ERROR on getting files\n");
-        continue;
-      }
-      /*Register files*/
-      if(registerFiles(sockfd, fileList) != 0) {
-        printf("Register files failed\n");
-        continue;
-      }
-      printf("Register with server successfull\n");
-    }
-    else if(strcmp(command, "l") == 0) {  //list files request
-      printf("List request sent to the server.\n");
-      /*Recevie list from server*/
-      bzero(buffer, sizeof(buffer));
-      if(recv(sockfd, buffer, sizeof(buffer), 0) <= 0) {
-        printf("Receive file list failed\n");
-        continue;
-      }
-      else {
-        printf("File list:\n");
-        printf("%s\n", buffer);
-      }
-    }
-    // else if(strcmp(command, "s") == 0) {
-    //   printf("Search request sent to the server.\n");
-    // }
-    else if(strcmp(command, "o") == 0) {
-      /*obtain file from other peer*/
-      printf("Enter file name to be obtained with extension: \t");
-      scanf("%s\n", file_name);
-      printf("Enter peer IP address: \t");
-      scanf("%s\n", peer_ip);
-      printf("Enter peer listening port: \t");
-      scanf("%s\n", peer_port);
-
-      /*create local file to save the obtained file*/
-      FILE *obtain_file = fopen(file_name, "w");
-      if(obtain_file == NULL) {
-        printf("File %s cannot be created\n", file_name);
-        continue;
-      }
-      printf("Obtain request sent to the peer: %s\n", peer_ip);
-
-      /*create socket to desired peer*/
-      peer_sock = socket(AF_INET, SOCK_STREAM, 0);
-      if(peer_sock < 0) {
-        printf("ERROR oon opening socket.\n");
-        continue;
-      }
-
-      peer_connect.sin_family = AF_INET;
-      peer_connect.sin_addr.s_addr = inet_addr(peer_ip);
-      peer_connect.sin_port = htons(atoi(peer_port));
-      bzero(&peer_connect.sin_zero, 8);
-
-      /*try to connect desired peer*/
-      if(connect(peer_sock, (struct sockaddr *) &peer_connect, sizeof(peer_connect)) < 0){
-        printf("ERROR on connecting to other peers\n");
-        continue;
-      }
-
-      /*down load file*/
-      bzero(buffer, sizeof(buffer));
-      int file_obtain_size = 0;
-      int len_recv = 0;
-      while((file_obtain_size = recv(peer_sock, buffer, MAXBUFSIZE, 0)) > 0) {
-        len_recv = fwrite(buffer, sizeof(char), file_obtain_size, obtain_file);
-        if(len_recv < file_obtain_size) {
-          printf("ERROR on writing file. Try agian\n");
-          continue;
-        }
-        bzero(buffer, sizeof(buffer));
-        if(file_obtain_size == 0 || file_obtain_size != MAXBUFSIZE) {
-          break;
-        }
-      }
-      if(file_obtain_size < 0){
-        printf("ERROR on receiving. Try agian\n");
-        continue;
-      }
-      printf("Obtain file %s successfull1\n", file_name);
-    }
-    else if(strcmp(command, "q") == 0) {
-      printf("Exit peer service, deregister on the server\n");
+    if (scanf("%d", &command) <= 0) {
+      printf("Enter only an integer from 1 to 4\n");
       kill(pid, SIGTERM);
       exit(0);
     }
     else {
-      printf("Invalid choice, please enter your choice agian.\n");
-      continue;
-    }
-  }
-}
+      switch (command) {
+        case 1:
+          temp = "r";
+          send(sockfd, temp, sizeof(temp), 0);
+          printf("Enter the file name with extension: ");
+          // fgets(input, MAXBUFSIZE, stdin);
+          scanf(" %[^\t\n]s", input);
+          send(sockfd, input, strlen(input), 0); // send input to server
+          len = recv(sockfd, output, sizeof(output), 0);
+          output[len] = '\0';
+          printf("%s\n", output);
+          bzero(output, sizeof(output));
+          break;
+        case 2:
+          temp = "s";
+          send(sockfd, temp, sizeof(temp), 0);
+          printf("Enter the file name to search: ");
+          scanf(" %[^\t\n]s", input); //recieve user input, --scanf to accept multi-word string
+          send(sockfd, input, strlen(input), 0); // send input to server
+          len = recv(sockfd, output, sizeof(output), 0);
+          output[len] = '\0';
+          printf("%s\n", output);
+          bzero(output, sizeof(output));
 
-/* Get files information in the directory, save them into a linked list*/
-int getFiles(List **fileList, char *ip, char *port) {
-  DIR *dirp;
-  struct dirent *dp;
-  struct stat fileStats;
-  char *fileName;
-  *fileList = emptylist();
+          printf("waiting for response...\n");
+          printf("Filename\tPeer name\tPeer IP\tPeer Port\n");
+          while((len = recv(sockfd, output, MAXBUFSIZE, 0)) > 0) {
+            output[len] = '\0';
+            printf("%s\n", output);
+            bzero(output, sizeof(output));
+          }
+          printf("Search complete!\n");
+          break;
+        case 3:
+          /*obtain file from other peer*/
+          printf("Enter file name to be obtained with extension: ");
+          scanf(" %[^\t\n]s", file_name);
+          printf("Enter peer IP address:  ");
+          scanf(" %[^\t\n]s", peer_ip);
+          printf("Enter peer listening port:  ");
+          scanf(" %[^\t\n]s", peer_port);
 
-  if ((dirp = opendir(".")) == NULL) {
-    perror("Cannot open '.'\n");
-    return 1;
-  }
-  do {
-    if ((dp = readdir(dirp)) != NULL) {
-      fileName = dp -> d_name;
-      if((strcmp(fileName, ".") != 0) && (strcmp(fileName, "..") != 0)) {
-        stat(fileName, &fileStats);
-        FileInfo fileInfo = {fileName, fileStats.st_size, ip, port};
-        add(fileInfo, *fileList);
-      }
-    }
-  } while (dp != NULL);
-  return 0;
-}
+          peer_sock = socket(AF_INET, SOCK_STREAM, 0);
+          if(peer_sock < 0) {
+            printf("ERROR oon opening socket.\n");
+            continue;
+          }
 
-/*Convert linkedlist to buffer*/
-int listToBuffer(List *fileList, char *buffer) {
-  if(fileList->head != NULL) {
-    Node *currNode = fileList->head;
-    strcat(buffer, "<");
-    strcat(buffer, currNode->data.name);
-    strcat(buffer, ",");
-    sprintf(buffer, "%s%d", buffer, currNode->data.size);
-    strcat(buffer, ",");
-    strcat(buffer, currNode->data.owner);
-    strcat(buffer, ",");
-    strcat(buffer, currNode->data.ip);
-    strcat(buffer, ",");
-    strcat(buffer, currNode->data.port);
-    strcat(buffer, ">");
+          peer_connect.sin_family = AF_INET;
+          peer_connect.sin_addr.s_addr = inet_addr(peer_ip);
+          peer_connect.sin_port = htons(atoi(peer_port));
+          bzero(&peer_connect.sin_zero, 8);
 
-    while(currNode->next != NULL) {
-      currNode = currNode->next;
-      strcat(buffer, "<");
-      strcat(buffer, currNode->data.name);
-      strcat(buffer, ",");
-      sprintf(buffer, "%s%d", buffer, currNode->data.size);
-      strcat(buffer, ",");
-      strcat(buffer, currNode->data.owner);
-      strcat(buffer, ",");
-      strcat(buffer, currNode->data.ip);
-      strcat(buffer, ",");
-      strcat(buffer, currNode->data.port);
-      strcat(buffer, ">");
-    }
+          /*try to connect desired peer*/
+          if(connect(peer_sock, (struct sockaddr *) &peer_connect, sizeof(peer_connect)) < 0){
+            printf("ERROR on connecting to other peers\n");
+            continue;
+          }
 
-    if(strlen(buffer) > 0) return 0;
-    return 1;
-  }
-  return 1;
+          /*send file keyword to peer*/
+          send(peer_sock, file_name,strlen(file_name), 0);
+          printf("Receving file from peer...\n");
+
+          char *recv_name = file_name;
+          FILE *obtain_file = fopen(recv_name, "w");
+          if(obtain_file == NULL) {
+            printf("File %s cannot be created.\n", recv_name);
+          }
+          else {
+            bzero(buffer, sizeof(buffer));
+            int file_obtain_size = 0;
+            int len_recv = 0;
+            while((file_obtain_size = recv(peer_sock, buffer, MAXBUFSIZE, 0)) > 0) {
+              len_recv = fwrite(buffer, sizeof(char), file_obtain_size, obtain_file);
+              if(len_recv < file_obtain_size) {
+                printf("ERROR on writing file. Try agian\n");
+              }
+              bzero(buffer, sizeof(buffer));
+              if(file_obtain_size == 0 || file_obtain_size != MAXBUFSIZE) {
+                break;
+              }
+            }
+            if(file_obtain_size < 0){
+              printf("ERROR on receiving. Try agian\n");
+              break;
+            }
+            fclose(obtain_file);
+            printf("Obtain file %s successfull1\n", file_name);
+            close(peer_sock);
+          }
+        case 4:
+          temp = "q";
+          send(sockfd, temp, sizeof(temp), 0);
+          printf("Exit peer service, deregister on the server\n");
+          kill(pid, SIGTERM);
+          exit(0);
+        default:
+          printf("Invalid choice\n");
+      }//close switch
+    }//close else
+  }//close while loop
+  close(listen_sock);
+  return (0);
 }
 
 /*Register client name with server*/
@@ -373,20 +319,4 @@ int registerClient(char *name, char *ip, char *port, int socket){
     printf("Name send failed\n");
     return -1;
   }
-}
-
-/*Register client files with server*/
-int registerFiles(int socket, List *fileList) {
-  char buffer[MAXBUFSIZE];
-  bzero(buffer, sizeof(buffer));
-  if(listToBuffer(fileList, buffer) != 0){
-    printf("Failed to read file list.\n");
-    return 1;
-  }
-  /*send buffer to server*/
-  if(send(socket, buffer, sizeof(buffer), 0) != 0) {
-    printf("Failed to send file list.\n");
-    return 1;
-  }
-  return 0;
 }
