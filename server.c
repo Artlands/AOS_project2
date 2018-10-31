@@ -36,7 +36,7 @@ void error(const char *msg) {
   exit(1);
 }
 
-struct client getClientInfo(int socket);
+struct client getClientInfo(char *clientString);
 int addClient(char name[MAXBUFSIZE], char ip[MAXBUFSIZE], int port, int *sizeClients);
 int registerFiles(int socket, int *sizeClients, int *sizeFileList);
 void addFile(char *name, char *size, char *source, char *ip, char *port, int *sizeFileList);
@@ -48,7 +48,9 @@ int main(int argc, char *argv[]) {
   int sizeFileList = 0;
   int sizeClients = 0;
   pid_t pid;
+  char clientInfo[MAXBUFSIZE]; // client info string stored
   char buffer[MAXBUFSIZE];  //recevier buffer
+  struct client tmpClientInfo;
 
   /*variables for creating socket*/
   int sockfd, newsockfd, portno;  //sockfd, newsockfd are file descriptors, store values returned by the socket system call and the accept system call.
@@ -108,17 +110,20 @@ int main(int argc, char *argv[]) {
       printf("Client connected from port no. %u and IP %s\n",
             ntohs(cli_addr.sin_port), inet_ntoa(cli_addr.sin_addr));
 
-      struct client tmpClientInfo;
-      tmpClientInfo = getClientInfo(newsockfd); /*bug here*/
-
-      printf("SUCCESS\n");
+      /*recevie client information*/
+      bzero(clientInfo, sizeof(clientInfo));
+      len = recv(newsockfd, clientInfo, sizeof(clientInfo), 0);
+      clientInfo[len] = '\0';
+      tmpClientInfo = getClientInfo(clientInfo);
+      printf("%s\n", clientInfo);
+      printf("Get client Information successfull\n");
 
       /*keep receiving message from client*/
       while(1) {
         bzero(buffer, sizeof(buffer));
         len = recv(newsockfd, buffer, sizeof(buffer), 0);
         buffer[len] = '\0';
-        printf("%s\n", buffer);
+        printf("%s\n", buffer); // check client command
 
         /*connection check*/
         if(len <= 0) {
@@ -184,22 +189,18 @@ int main(int argc, char *argv[]) {
 }
 
 /*return client information*/
-struct client getClientInfo(int socket) {
+struct client getClientInfo(char *clientString) {
   struct client clientInfo;
   char name[MAXBUFSIZE], ip[MAXBUFSIZE], port[MAXBUFSIZE];
-  char buffer[MAXBUFSIZE];
-  char *temp; // variable to store temporary values
 
-  bzero(buffer, sizeof(buffer));
   bzero(name, sizeof(name));
   bzero(ip, sizeof(ip));
   bzero(port, sizeof(port));
 
-  recv(socket, buffer, sizeof(buffer), 0);
   char *start;
   char *end;
-  start = buffer;
-  end = strchr(buffer, '|');
+  start = clientString;
+  end = strchr(clientString, '|');
   //get name from string
   int i = 0;
   while(start != end) {
@@ -222,9 +223,6 @@ struct client getClientInfo(int socket) {
   end++;
   strcpy(port, end);
   clientInfo.port = atoi(port);
-
-  temp = "success";
-  send(socket, temp, sizeof(temp), 0);
 
   return clientInfo;
 }

@@ -193,9 +193,10 @@ int main(int argc, char *argv[]) {
     printf("q: Deregister with Server and Quit\n");
     printf("Enter choice: \t");
     scanf("%s", command);
-    buffer[1] = '\0';
+    send(sockfd, command, sizeof(command), 0);
+    printf("Choice:%s\n", command);
+
     if(strcmp(command, "r") == 0) {   //register request
-      send(sockfd, command, sizeof(command), 0);
       /*Create file list*/
       if(getFiles(&fileList, myIP, myPort) != 0) {
         printf("ERROR on getting files\n");
@@ -366,23 +367,12 @@ int registerClient(char *name, char *ip, char *port, int socket){
   strcat(buffer, port);
 
   if(send(socket, buffer, sizeof(buffer), 0) > 0) {
-    bzero(buffer, sizeof(buffer));
-    if(recv(socket, buffer, sizeof(buffer), 0) > 0) {
-      if(strcmp(buffer, "success") == 0) {
-        return 0;
-      }
-      return -1;
-    }
-    else {
-      printf("Receive after name send failed.\n");
-      return -1;
-    }
+    return 0;
   }
   else {
     printf("Name send failed\n");
     return -1;
   }
-  return -1;
 }
 
 /*Register client files with server*/
