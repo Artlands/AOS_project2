@@ -13,12 +13,14 @@
 #define MAXFILES 1024
 #define MAXCLIENTS 32
 
+/*save client info*/
 struct client {
   char name[MAXBUFSIZE];
   char ip[MAXBUFSIZE];
   int port;
 };
 
+/*save file info*/
 struct file {
   char name[MAXBUFSIZE];
   int size;
@@ -28,7 +30,6 @@ struct file {
 struct file fileList[MAXFILES];
 struct client clientList[MAXCLIENTS];
 
-// void addFile(char *name, char *source, char *ip, char *port, int *fileList);
 // Called when a system call fails
 void error(const char *msg) {
   perror(msg);
@@ -47,11 +48,14 @@ int main(int argc, char *argv[]) {
   int sizeFileList = 0;
   int sizeClients = 0;
   pid_t pid;
+  char buffer[MAXBUFSIZE];  //recevier buffer
 
+  /*variables for creating socket*/
   int sockfd, newsockfd, portno;  //sockfd, newsockfd are file descriptors, store values returned by the socket system call and the accept system call.
   socklen_t clilen; //clilen stores the size of the address of the client.
   struct sockaddr_in serv_addr, cli_addr; //structure containing internet addresses
   clilen = sizeof(cli_addr);
+  int len;// variables to measure incoming stream from user
 
   /*get hostname and ip address*/
   char hostbuffer[256];
@@ -64,6 +68,8 @@ int main(int argc, char *argv[]) {
   if (argc < 2) {
     error("ERROR, no port provided.\n");
   }
+
+  /*set up port for listening incoming peer requests*/
   sockfd = socket(AF_INET, SOCK_STREAM, 0); //create a new socket, returns an entry into file descriptor table
   if (sockfd < 0)
     error("ERROR opening socket.");
@@ -81,79 +87,93 @@ int main(int argc, char *argv[]) {
   if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)  //binds a socket to an address
     error("ERROR on binding.");
 
-  listen(sockfd,5);
+  if(listen(sockfd,5) == -1) {
+    error("ERROR on listening");
+  }
+
   printf("Starting Central Indexing Server...\n");
   printf("Hostname: %s\n", hostbuffer);
   printf("IP address: %s\n", IPbuffer);
   printf("Start listening on port %u...\n", portno);
 
-  char buffer[MAXBUFSIZE];  //recevier buffer
   while(1) {
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-    if(newsockfd < 0) continue;
+    if(newsockfd == -1) continue;
     /*create seperate process for each client*/
     pid = fork();
-    if(pid != 0){ //child process
+    if(!pid){ //for multiple connections, child process
       close(sockfd); // close the socket for other connections
 
       /*get client ip address and port*/
-      char cli_addr_str[clilen];
-      u_short cli_port;
-      inet_ntop(AF_INET, &(cli_addr.sin_addr.s_addr), cli_addr_str, clilen);
-      cli_port = cli_addr.sin_port;
-      printf("Client connected from port no. %u and IP %s\n", cli_port, cli_addr_str);
+      printf("Client connected from port no. %u and IP %s\n",
+            ntohs(cli_addr.sin_port), inet_ntoa(cli_addr.sin_addr));
 
       struct client tmpClientInfo;
-      tmpClientInfo = getClientInfo(newsockfd);
+      tmpClientInfo = getClientInfo(newsockfd); /*bug here*/
+
+      printf("SUCCESS\n");
 
       /*keep receiving message from client*/
       while(1) {
         bzero(buffer, sizeof(buffer));
-        if(recv(newsockfd, buffer, sizeof(buffer), 0) > 0) {
-          /*Register peer with server*/
-          if(strcmp(buffer, "r") == 0) {
+        len = recv(newsockfd, buffer, sizeof(buffer), 0);
+        buffer[len] = '\0';
+        printf("%s\n", buffer);
 
-            //add client
-            bzero(buffer, sizeof(buffer));
-            if(addClient(tmpClientInfo.name, tmpClientInfo.ip, tmpClientInfo.port, &sizeClients)) {
-              strcat(buffer, "Add client successfull.");
-              if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
-                printf("Send add client response failed\n");
-              }
-            }
-            else {
-              strcat(buffer, "The client has already registered.");
-              if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
-                printf("Send add client response failed\n");
-              }
-            }
-            //register files
-            bzero(buffer, sizeof(buffer));
-            if(registerFiles(newsockfd, &sizeClients, &sizeFileList)) {
-              strcat(buffer, "Register files successfull.");
-              if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
-                printf("Send register file response failed\n");
-              }
-            }
-            else {
-              strcat(buffer, "Register files failed.");
-              if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
-                printf("Send register file response failed\n");
-              }
+        /*connection check*/
+        if(len <= 0) {
+          if(len == 0)
+            printf("Peer %s hung up\n",inet_ntoa(cli_addr.sin_addr));
+          else
+            printf("ERROR on receving\n");
+          close(newsockfd);
+          exit(0);
+        }
+
+        /*Register peer with server*/
+        if(strcmp(buffer, "r") == 0) {
+
+          /*add client*/
+          bzero(buffer, sizeof(buffer));
+          if(addClient(tmpClientInfo.name, tmpClientInfo.ip, tmpClientInfo.port, &sizeClients)) {
+            strcat(buffer, "Add client successfull.");
+            if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+              printf("Send add client response failed\n");
             }
           }
-          else if(strcmp(buffer, "l") == 0) {
-            /*List files registered with server*/
-            sendFileList(newsockfd, &sizeFileList);
+          else {
+            strcat(buffer, "The client has already registered.");
+            if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+              printf("Send add client response failed\n");
+            }
           }
-          else if (strcmp(buffer, "q")) {
-            printf("Client disconnected from port no. %u and IP %s\n", cli_port, cli_addr_str );
-            /*deregister with server*/
-            removeClient(tmpClientInfo.name, &sizeClients, &sizeFileList);
-            close(newsockfd);
-            kill(pid, SIGTERM);
-            exit(0);
+          //register files
+          bzero(buffer, sizeof(buffer));
+          if(registerFiles(newsockfd, &sizeClients, &sizeFileList)) {
+            strcat(buffer, "Register files successfull.");
+            if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+              printf("Send register file response failed\n");
+            }
           }
+          else {
+            strcat(buffer, "Register files failed.");
+            if(send(newsockfd, buffer, sizeof(buffer), 0) <= 0) {
+              printf("Send register file response failed\n");
+            }
+          }
+        }
+        else if(strcmp(buffer, "l") == 0) {
+          /*List files registered with server*/
+          sendFileList(newsockfd, &sizeFileList);
+        }
+        else if (strcmp(buffer, "q")) {
+          printf("Client disconnected from port no. %u and IP %s\n",
+                ntohs(cli_addr.sin_port), inet_ntoa(cli_addr.sin_addr));
+          /*deregister with server*/
+          removeClient(tmpClientInfo.name, &sizeClients, &sizeFileList);
+          close(newsockfd);
+          kill(pid, SIGTERM);
+          exit(0);
         }
       } //close inner while loop
     }
@@ -168,6 +188,7 @@ struct client getClientInfo(int socket) {
   struct client clientInfo;
   char name[MAXBUFSIZE], ip[MAXBUFSIZE], port[MAXBUFSIZE];
   char buffer[MAXBUFSIZE];
+  char *temp; // variable to store temporary values
 
   bzero(buffer, sizeof(buffer));
   bzero(name, sizeof(name));
@@ -201,6 +222,9 @@ struct client getClientInfo(int socket) {
   end++;
   strcpy(port, end);
   clientInfo.port = atoi(port);
+
+  temp = "success";
+  send(socket, temp, sizeof(temp), 0);
 
   return clientInfo;
 }

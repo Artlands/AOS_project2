@@ -3,7 +3,8 @@ CLIENT=client
 SERVER=server
 
 all: linkedlist.o
-	gcc -Wall linkedlist.o client.c -o client
+	gcc -Wall linkedlist.o client.c -o peer_1/client
+	gcc -Wall linkedlist.o client.c -o peer_2/client
 	gcc -Wall server.c -o server
 
 # all: $(CLIENT).out $(SERVER).out

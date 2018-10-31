@@ -1,3 +1,4 @@
+// linkedlist.h refer to https://github.com/skorks/c-linked-list
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -11,11 +12,9 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <signal.h>
-// linkedlist.h refer to https://github.com/skorks/c-linked-list
 #include "linkedlist.h"
 
 #define MAXBUFSIZE 2048
-#define MAXINTSIZE 8
 
 void error(const char *msg)
 {
@@ -29,15 +28,14 @@ int registerFiles(int socket, List *fileList);
 int obtainFile(int socket, struct sockaddr_in peer, char file_name,
                char *ip, char *port, FILE *file);
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   List *fileList = emptylist();
   pid_t pid;
   char input[MAXBUFSIZE]; //user input stored
   char output[MAXBUFSIZE]; //send file stored
   char buffer[MAXBUFSIZE]; //recevie message stored
   char command[MAXBUFSIZE]; // user command stored
-  char hostname[MAXBUFSIZE];  // host name stored
+  char hostname[256];  // host name stored
   char *myIP; //local ip address
   char myPort[MAXBUFSIZE];    //port used for other peers
   struct hostent *host_entry;
@@ -92,6 +90,11 @@ int main(int argc, char *argv[])
     error("ERROR on connecting");
   printf("Connect with the central indexing server successfull!\n");
 
+  /*Register client name*/
+  if(registerClient(hostname, myIP, myPort, sockfd) == -1) {
+    error("ERROR on sending client info");
+  }
+
   /*Set up port for listening incoming connections for download files*/
   listen_sock = socket(AF_INET, SOCK_STREAM, 0);
   if(listen_sock < 0)
@@ -100,7 +103,6 @@ int main(int argc, char *argv[])
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;  //INADDR_ANY means server will bind to all netwrok interfaces on machine for given port no
   server.sin_port = htons(atoi(argv[3]));
-  bzero(&server.sin_zero, 8); //padding zeros
 
   if(bind(listen_sock, (struct sockaddr *) &server, sizeof(server)) < 0)
     error("ERROR on binding.");
@@ -191,16 +193,12 @@ int main(int argc, char *argv[])
     printf("q: Deregister with Server and Quit\n");
     printf("Enter choice: \t");
     scanf("%s", command);
-
+    buffer[1] = '\0';
     if(strcmp(command, "r") == 0) {   //register request
+      send(sockfd, command, sizeof(command), 0);
       /*Create file list*/
       if(getFiles(&fileList, myIP, myPort) != 0) {
         printf("ERROR on getting files\n");
-        continue;
-      }
-      /*Register client name*/
-      if(registerClient(hostname, myIP, myPort, sockfd)) {
-        printf("Client Name already registered.\n");
         continue;
       }
       /*Register files*/
@@ -373,18 +371,18 @@ int registerClient(char *name, char *ip, char *port, int socket){
       if(strcmp(buffer, "success") == 0) {
         return 0;
       }
-      return 1;
+      return -1;
     }
     else {
       printf("Receive after name send failed.\n");
-      return 1;
+      return -1;
     }
   }
   else {
     printf("Name send failed\n");
-    return 1;
+    return -1;
   }
-  return 1;
+  return -1;
 }
 
 /*Register client files with server*/
