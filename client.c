@@ -224,6 +224,8 @@ int main(int argc, char *argv[]) {
           printf("Search complete!\n");
           break;
         case 3:
+          temp = "o";
+          send(sockfd, temp, sizeof(temp), 0);
           /*obtain file from other peer*/
           printf("Enter file name to be obtained with extension: ");
           scanf(" %[^\t\n]s", file_name);
