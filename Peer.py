@@ -18,7 +18,7 @@ def get_args():
     Get command line arguments from user
     """
     parser = argparse.ArgumentParser(
-        description = 'Specify arguments to talk to the central indexing server'
+        description = 'Specify port number to talk to the central indexing server'
     )
     parser.add_argument('-s', '--server',
                         type = int,
@@ -51,7 +51,7 @@ class PeerOperations(threading.Thread):
             peer_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_server_host = socket.gethostname()
             peer_server_port = self.peer.hosting_port
-            peer_server_socket.bind(peer_server_host, peer_server_port)
+            peer_server_socket.bind((peer_server_host, peer_server_port))
             peer_server_socket.listen()
             while True:
                 conn, addr = peer_server_socket.accept()
@@ -100,7 +100,7 @@ class PeerOperations(threading.Thread):
             listener_thread.setDaemon(True)
             listener_thread.start()
 
-            opeartions_thread = threading.Thread(target = self.peer_server_host)
+            operations_thread = threading.Thread(target = self.peer_server_host)
             operations_thread.setDaemon(True)
             operations_thread.start()
 
@@ -198,7 +198,7 @@ class Peer():
         try:
             peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(self.peer_hostname, self.server_port)
+            peer_to_server_socket.connect((self.peer_hostname, self.server_port))
 
             cmd_issue = {
                 'command': 'list'
@@ -207,8 +207,8 @@ class Peer():
             rcv_data = json.loads(peer_to_server_socket.recv(1024))
             peer_to_server_socket.close()
             print(f"File list in the central indexing server")
-            # for f in rcv_data:
-            #     print(f)
+            for f in rcv_data:
+                print(f)
         except Exception as e:
             print(f"Listing files from central indexing server error, {e}")
 
@@ -220,7 +220,7 @@ class Peer():
         try:
             peer_to_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(self.peer_hostname, self.server_port)
+            peer_to_server_socket.connect((self.peer_hostname, self.server_port))
 
             cmd_issue = {
                 'command': 'search',
@@ -252,7 +252,7 @@ class Peer():
             peer_request_addr, peer_request_port = peer_request_id.split(':')
             peer_request_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_request_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_request_socket.connect(sock.gethostname(), int(peer_request_port))
+            peer_request_socket.connect((sock.gethostname(), int(peer_request_port)))
 
             cmd_issue = {
                 'command': 'obtain',
@@ -275,37 +275,35 @@ if __name__ == '__main__':
     try:
         args = get_args()
         print(f"Starting peer...")
+        # create a instance of Peer, use argument specified by user to initialize
         p = Peer(args.server)
-        p.register_peer()
-
-        print(f"Starting peer server deamon thread...")
-        server_thread = PeerOperations(1, 'PeerServer', p)
-        server_thread.setDaemon(True)
-        server_thread.start()
 
         while True:
-            print("-" * 20)
-            print("1. List all files in central indexing server")
-            print("2. Search for File")
-            print("3. Get file from peer")
-            print("4. Exit")
-            print("-" * 20)
-            print("Enter choice: ")
-            ops = raw_input()
+            print("-" * 64)
+            print("*  register:  Register the peer on the central indexing server *")
+            print("*  list:      List all files in central indexing server        *")
+            print("*  search:    Search for File                                  *")
+            print("*  obtain:    Get file from peer                               *")
+            print("*  exit:      Exit                                             *")
+            print("-" * 64)
+            ops = input("Enter choice: ")
 
-            if int(ops) == 1:
+            if ops == "register":
+                p.register_peer()
+                print(f"Starting peer server deamon thread...")
+                server_thread = PeerOperations(1, 'PeerServer', p)
+                server_thread.setDaemon(True)
+                server_thread.start()
+            elif ops == "list":
                 p.list_files_index_server()
-            elif int(ops) == 2:
-                print("Enter file name: ")
-                file_name = raw_input()
+            elif ops == "search":
+                file_name = input("Enter file name: ")
                 p.search_file(file_name)
-            elif int(ops) == 3:
-                print("Enter file name: ")
-                file_name = raw_input()
-                print("Enter Peer ID: ")
-                peer_request_id = raw_input()
+            elif ops == "obtain":
+                file_name = input("Enter file name: ")
+                peer_request_id = input("Enter Peer ID: ")
                 p.obtain(file_name, peer_request_id)
-            elif int(ops) == 4:
+            elif ops == "exit":
                 break
             else:
                 print("Invalid choice...")
@@ -314,6 +312,6 @@ if __name__ == '__main__':
         print(e)
         sys.exit(1)
     except (KeyboardInterrupt, SystemExit):
-        print("Central Indexing Server shutting down...")
+        print("Peer shutting down...")
         time.sleep(1)
         sys.exit(1)

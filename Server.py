@@ -16,7 +16,7 @@ def get_args():
     Get command line arguments from user
     """
     parser = argparse.ArgumentParser(
-        description = 'Specify arguments to talk to the central indexing server'
+        description = 'Specify port number to setup the central indexing server'
     )
     parser.add_argument('-p', '--port',
                         type = int,
@@ -37,14 +37,16 @@ class ServerOperations(threading.Thread):
         self.threadID = threadid
         self.name = name
         self.server_port = server_port
-        self.hash_table_ports_peers = {}
-        self.hash_table_files = {}
-        self.hash_table_peer_files = {}
+        # save registration information
+        self.files_list = []
+        self.peer_files = {}
+        self.file_peers = {}
+        # listener_queue to store all peers connected to the central indexing server
         self.listener_queue = Queue()
 
-    def server_listener(self):
+    def listener(self):
         """
-        Start to listen on port: 8080 for incoming connections.
+        Start to listen on port: ---- for incoming connections.
         """
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -69,14 +71,14 @@ class ServerOperations(threading.Thread):
         @return free_socket:    Socket port to be used as a peer server.
         """
         try:
-            self.hash_table_ports_peers[peer_port] = addr[0]
             peer_id = addr[0] + ':' + str(peer_port)
-            self.hash_table_peer_files[peer_id] = files
+            self.peer_files[peer_id] = files
             for f in files:
-                if f in self.hash_table_files:
-                    self.hash_table_peer_files[f].append(peer_id)
+                if f in self.file_peers and peer_id not in self.file_peers[f]:
+                    self.file_peers[f].append(peer_id)
                 else:
-                    self.hash_table_peer_files[f] = [peer_id]
+                    self.files_list.append(f)
+                    self.file_peers[f] = [peer_id]
             return True
         except Exception as e:
             print(f"Peer registration failure: {e}")
@@ -89,8 +91,7 @@ class ServerOperations(threading.Thread):
         @return files_list:     List of files present in the server
         """
         try:
-            files_list = self.hash_table_files.keys()
-            return files_list
+            return self.files_list
         except Exception as e:
             print(f"Listing files error: {e}")
 
@@ -101,8 +102,8 @@ class ServerOperations(threading.Thread):
         @return:                List of peers associated with the file.
         """
         try:
-            if file_name in self.hash_table_files:
-                peer_list = self.hash_table_files[file_name]
+            if file_name in self.files_list:
+                peer_list = self.file_peers[file_name]
             else:
                 peer_list = []
             return peer_list
@@ -115,7 +116,7 @@ class ServerOperations(threading.Thread):
         """
         try:
             print("Starting server listener...")
-            listener_thread = threading.Thread(target = self.server_listener)
+            listener_thread = threading.Thread(target = self.listener)
             listener_thread.setDaemon(True)
             listener_thread.start()
             while True:
@@ -133,7 +134,7 @@ class ServerOperations(threading.Thread):
                             if success:
                                 print(f"Registration successfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
                                 conn.send(json.dumps([addr[0], success]).encode())
-                            else: #?
+                            else:
                                 print(f"Registration unsuccessfull, Peer ID: {addr[0]} : {data_received['peer_port']}")
                                 conn.send(json.dumps([addr[0], success]).encode())
 
@@ -149,9 +150,10 @@ class ServerOperations(threading.Thread):
                             print(f"Peer list generated {peer_list}")
                             conn.send(json.dumps(peer_list).encode())
 
-                        print(f"Hash table: files || {self.hash_table_files}")
-                        print(f"Hash table: Port-Peers || {self.hash_table_ports_peers}")
-                        print(f"Hash table: Peer-Files || {self.hash_table_peer_files}")
+                        print(f"All registered files: {self.files_list}")
+                        print(f"Peer-Files table: {self.peer_files}")
+                        print(f"File-Peers table: {self.file_peers}")
+                        print("-" * 64)
                         conn.close()
         except Exception as e:
             print(f"Server error; {e}")
@@ -164,7 +166,6 @@ if __name__ == "__main__":
     try:
         args = get_args()
         print(f"Starting Central Indexing Server...")
-        print(f"Starting Server operations thread...")
         operations_thread = ServerOperations(1, "ServerOperations", args.port)
         operations_thread.run()
     except Exception as e:
