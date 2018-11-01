@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
         bzero(buffer, sizeof(buffer));
         len = recv(newsockfd, buffer, sizeof(buffer), 0);
         buffer[len] = '\0';
-        // printf("%s\n", buffer); // check client command
+        printf("Request from %s, %s\n",client_name, buffer); // check client request
 
         /*connection check*/
         if(len <= 0) {
@@ -140,8 +140,7 @@ int main(int argc, char *argv[]) {
             fwrite("\n", sizeof(char), 1, filedet);
           }
           len = recv(newsockfd, buffer, sizeof(buffer), 0);
-          printf("%d\n", len );
-          printf("%s\n", buffer );
+          printf("Request from %s, register file %s\n",client_name, buffer);
           fwrite(&buffer, len, 1, filedet);
           char report[] = "File register successfull";
           send(newsockfd, report, sizeof(report), 0);
@@ -160,7 +159,7 @@ int main(int argc, char *argv[]) {
           bzero(buffer, sizeof(buffer));
           len = recv(newsockfd, buffer, sizeof(buffer), 0);
           buffer[len] = '\0';
-          printf("Search file: %s\n",buffer);
+          printf("Request from %s ,search file: %s\n",client_name, buffer);
 
           char command[50];
           system("chmod 755 ./searchscript.sh");// command executed to give execute permissions to script
@@ -174,25 +173,22 @@ int main(int argc, char *argv[]) {
           if(file_search == NULL) {
             error("Unable to open file.");
           }
-          int file_search_send;
-          while((file_search_send = fread(buffer, sizeof(char), MAXBUFSIZE, file_search)) > 0) {
-            len = send(newsockfd, buffer, file_search_send, 0);
-            if(len < 0) {
-              error("ERROR: file not found");
-            }
-            bzero(buffer, sizeof(buffer));
-          }
+
+          fread(buffer, sizeof(char), MAXBUFSIZE, file_search);
+          send(newsockfd, buffer, sizeof(buffer), 0);
           fclose(file_search);
         }
-        else if (strcmp(buffer, "o")) {
+        else if (strcmp(buffer, "o") == 0) {
+          bzero(buffer, sizeof(buffer));
           printf("Client obtaning file from other peers\n");
         }
-        else if (strcmp(buffer, "q")) {
+        else if (strcmp(buffer, "q") == 0) {
+          bzero(buffer, sizeof(buffer));
           printf("Client disconnected from port no. %u and IP %s\n",
                 ntohs(cli_addr.sin_port), inet_ntoa(cli_addr.sin_addr));
           update_Client(client_name,client_ip);
           close(newsockfd);
-          kill(pid, SIGTERM);
+          // kill(pid, SIGTERM);
           exit(0);
         }
       } //close inner while loop

@@ -215,18 +215,12 @@ int main(int argc, char *argv[]) {
           printf("Enter the file name to search: ");
           scanf(" %[^\t\n]s", input); //recieve user input, --scanf to accept multi-word string
           send(sockfd, input, strlen(input), 0); // send input to server
-          len = recv(sockfd, output, sizeof(output), 0);
-          output[len] = '\0';
           printf("waiting for response...\n");
-          printf("Filename\tPeer name\tPeer IP\tPeer Port\n");
+          printf("Filename\tPeer name\t\tPeer IP\t\tPeer Port\n");
+
+          recv(sockfd, output, MAXBUFSIZE, 0);
           printf("%s\n", output);
           bzero(output, sizeof(output));
-
-          while((len = recv(sockfd, output, MAXBUFSIZE, 0)) > 0) {
-            output[len] = '\0';
-            printf("%s\n", output);
-            bzero(output, sizeof(output));
-          }
           printf("Search complete!\n");
           break;
         case 3:
@@ -290,6 +284,7 @@ int main(int argc, char *argv[]) {
           temp = "q";
           send(sockfd, temp, sizeof(temp), 0);
           printf("Exit peer service, deregister on the server\n");
+          close(listen_sock);
           kill(pid, SIGTERM);
           exit(0);
         default:
