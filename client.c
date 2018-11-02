@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
 
           /*send file keyword to peer*/
           send(peer_sock, file_name,strlen(file_name), 0);
-          printf("Receving file from peer...\n");
+          printf("Receiving file from peer...\n");
 
           char *recv_name = file_name;
           FILE *obtain_file = fopen(recv_name, "w");
@@ -279,7 +279,7 @@ int main(int argc, char *argv[]) {
               break;
             }
             fclose(obtain_file);
-            printf("Obtain file %s successfull1\n", file_name);
+            printf("Obtain file %s successful!\n", file_name);
             close(peer_sock);
           }
         case 4:

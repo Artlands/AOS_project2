@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
           len = recv(newsockfd, buffer, sizeof(buffer), 0);
           printf("Request from %s, register file %s\n",client_name, buffer);
           fwrite(&buffer, len, 1, filedet);
-          char report[] = "File register successfull";
+          char report[] = "File register successful";
           send(newsockfd, report, sizeof(report), 0);
 
           fwrite("\t", sizeof(char), 1, filedet);
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
         }
         else if (strcmp(buffer, "o") == 0) {
           bzero(buffer, sizeof(buffer));
-          printf("Client obtaning file from other peers\n");
+          printf("Client obtianing file from other peers\n");
         }
         else if (strcmp(buffer, "q") == 0) {
           bzero(buffer, sizeof(buffer));
