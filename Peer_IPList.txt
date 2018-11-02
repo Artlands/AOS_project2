@@ -1,0 +1,10 @@
+
+lijiedeMacBook.local:10.188.41.29 connected to server at Thu Nov  1 16:36:44 2018
+
+lijiedeMacBook.local:10.188.41.29 connected to server at Thu Nov  1 16:36:54 2018
+
+lijiedeMacBook.local:10.188.41.29 connected to server at Thu Nov  1 16:38:10 2018
+
+lijiedeMacBook.local:10.188.41.29 connected to server at Thu Nov  1 16:41:57 2018
+
+lijiedeMacBook.local:10.188.41.29 disconnected to server at Thu Nov  1 16:42:10 2018
